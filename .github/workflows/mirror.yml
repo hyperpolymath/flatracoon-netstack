@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2025 Hyperpolymath <hyperpolymath@proton.me>
+name: Mirror to GitLab and Bitbucket
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  mirror-gitlab:
+    name: Mirror to GitLab
+    runs-on: ubuntu-latest
+    if: vars.GITLAB_MIRROR_ENABLED == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.GITLAB_SSH_KEY }}
+
+      - name: Add GitLab to known hosts
+        run: ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
+
+      - name: Push to GitLab
+        run: |
+          git remote add gitlab git@gitlab.com:hyperpolymath/flatracoon-netstack.git || true
+          git push gitlab main --force
+
+  mirror-bitbucket:
+    name: Mirror to Bitbucket
+    runs-on: ubuntu-latest
+    if: vars.BITBUCKET_MIRROR_ENABLED == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.BITBUCKET_SSH_KEY }}
+
+      - name: Add Bitbucket to known hosts
+        run: ssh-keyscan -H bitbucket.org >> ~/.ssh/known_hosts
+
+      - name: Push to Bitbucket
+        run: |
+          git remote add bitbucket git@bitbucket.org:hyperpolymath/flatracoon-netstack.git || true
+          git push bitbucket main --force

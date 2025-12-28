@@ -1,0 +1,277 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 Hyperpolymath <hyperpolymath@proton.me>
+= FlatRacoon Network Stack
+Jonathan — Systems Architect
+:toc:
+:toclevels: 3
+:icons: font
+
+== Overview
+
+The *FlatRacoon Network Stack* is a modular, declarative, and fully narratable ecosystem
+designed to integrate secure access (Twingate), encrypted overlay networking (ZeroTier),
+distributed storage (IPFS), IPv6-only networking, Hesiod DNS, and BGP backbone simulation
+into a cohesive, orchestrated platform.
+
+This repository acts as the *integration layer* and *source of truth* for all components.
+Each module is independently deployable, immutable, and reversible, while the integrated
+tooling composes them into a unified operational system.
+
+== Architecture Layers
+
+=== Access & Identity Layer
+*Repository:* link:https://github.com/hyperpolymath/twingate-helm-deploy[twingate-helm-deploy]
+
+Provides secure ingress/egress into the Kubernetes environment using Helm-managed
+Twingate Connectors.
+
+=== Overlay Networking Layer
+*Repository:* link:https://github.com/hyperpolymath/zerotier-k8s-link[zerotier-k8s-link]
+
+Establishes encrypted peer-to-peer mesh networking between Kubernetes nodes.
+
+=== Distributed Storage Layer
+*Repository:* link:https://github.com/hyperpolymath/ipfs-overlay[ipfs-overlay]
+
+Deploys private IPFS nodes bound to the ZeroTier overlay for secure, decentralised storage.
+
+=== Network Enforcement Layer
+*Repository:* link:https://github.com/hyperpolymath/ipv6-site-enforcer[ipv6-site-enforcer]
+
+Enforces IPv6-only ingress with NAT64/DNS64 for legacy client compatibility.
+
+=== Naming & Discovery Layer
+*Repository:* link:https://github.com/hyperpolymath/hesiod-dns-map[hesiod-dns-map]
+
+Provides Hesiod (HS-class) DNS-based service discovery and resource mapping.
+
+=== Backbone Simulation Layer
+*Repository:* link:https://github.com/hyperpolymath/bgp-backbone-lab[bgp-backbone-lab]
+
+Private BGP routing lab for route policy development and testing.
+
+=== Platform Layer
+*Repository:* link:https://github.com/hyperpolymath/flatracoon-os[flatracoon-os]
+
+Minix-Flatcar hybrid OS prototype for immutable, microkernel-driven container hosting.
+
+=== Observability Layer
+*Repository:* link:https://github.com/hyperpolymath/network-dashboard[network-dashboard]
+
+Phoenix LiveView dashboard for real-time monitoring of all stack components.
+
+=== Orchestration Layer
+*This repository*
+
+Consumes machine-readable manifests from all modules and coordinates deployment,
+configuration, health checks, and lifecycle events.
+
+== Technology Stack
+
+[cols="1,2"]
+|===
+| Component | Technology
+
+| Orchestrator
+| Elixir / Phoenix LiveView
+
+| TUI
+| Ada/SPARK (kith patterns)
+
+| Interface
+| Deno / ReScript
+
+| Configuration
+| Nickel (via mustfile)
+
+| Task Runner
+| Just + mustfile
+
+| Secrets
+| poly-secret-mcp (Vault/SOPS)
+
+| Kubernetes
+| poly-k8s-mcp (kubectl/Helm)
+
+| Observability
+| poly-observability-mcp (Prometheus/Grafana/Loki)
+|===
+
+== Integration Flow
+
+. Twingate establishes secure access to the cluster.
+. ZeroTier forms an encrypted mesh between nodes.
+. IPFS nodes operate exclusively on the ZeroTier overlay.
+. IPv6 enforcer ensures all traffic is v6-native.
+. Hesiod provides service discovery across the mesh.
+. BGP lab validates routing policies before production.
+. Network dashboard provides real-time visibility.
+. The orchestrator coordinates cross-module configuration and health.
+
+== Design Principles
+
+* Declarative over imperative
+* Immutable over mutable
+* Modular over monolithic
+* Narratable over opaque
+* Reversible over destructive
+
+== Repository Structure
+
+[source]
+----
+flatracoon-netstack/
+├── orchestrator/          # Elixir/Phoenix orchestrator
+│   ├── lib/
+│   ├── config/
+│   └── test/
+├── tui/                   # Ada/SPARK TUI (kith patterns)
+│   └── src/
+├── interface/             # Deno/ReScript interface
+│   └── src/
+├── configs/               # Nickel configurations
+│   ├── base.ncl
+│   ├── modules.ncl
+│   └── secrets.ncl
+├── modules/               # Git submodules
+│   ├── twingate-helm-deploy/
+│   ├── zerotier-k8s-link/
+│   ├── ipfs-overlay/
+│   ├── ipv6-site-enforcer/
+│   ├── hesiod-dns-map/
+│   ├── bgp-backbone-lab/
+│   ├── flatracoon-os/
+│   ├── network-dashboard/
+│   ├── poly-k8s-mcp/
+│   ├── poly-secret-mcp/
+│   └── poly-observability-mcp/
+├── health/                # Health check definitions
+├── docs/                  # Extended documentation
+├── .github/workflows/     # CI/CD
+├── Justfile               # Task runner
+├── must.ncl               # Mustfile configuration
+├── STATE.scm              # Project state
+├── META.scm               # Architecture decisions
+├── ECOSYSTEM.scm          # Ecosystem relationships
+├── PLAYBOOK.scm           # Operational playbook
+├── AGENTIC.scm            # AI agent guidance
+├── NEUROSYM.scm           # Neurosymbolic reasoning
+├── SECURITY.md            # Tri-perimeter security model
+├── CONTRIBUTING.md        # Contribution guide
+└── README.adoc            # This file
+----
+
+== Module Manifests
+
+Each module exposes a machine-readable manifest consumed by the orchestrator:
+
+[source,json]
+----
+{
+  "module": "<module-name>",
+  "version": "0.1.0",
+  "layer": "<layer-name>",
+  "requires": ["<dependencies>"],
+  "provides": ["<capabilities>"],
+  "config_schema": "configs/schema.ncl",
+  "health_endpoint": "/health",
+  "metrics_endpoint": "/metrics"
+}
+----
+
+== Agentic Guidance
+
+* Each module exposes a machine-readable manifest consumed by this orchestrator.
+* Cross-module dependencies are resolved *only* at this layer.
+* Modules must remain independently deployable and testable.
+* All configuration must be deterministic, reversible, and auditable.
+* The orchestrator is the single source of truth for deployment state.
+
+== Quick Start
+
+[source,bash]
+----
+# 1. Clone with submodules
+git clone --recursive https://github.com/hyperpolymath/flatracoon-netstack.git
+cd flatracoon-netstack
+
+# 2. Initialize environment
+just init
+
+# 3. Configure secrets
+just secrets-setup
+
+# 4. Deploy stack
+just deploy
+
+# 5. Access dashboard
+just dashboard
+----
+
+== Integrated Repositories (Submodules)
+
+=== Core Modules
+
+[cols="1,2,1"]
+|===
+| Module | Purpose | Layer
+
+| twingate-helm-deploy
+| Twingate Connector via Helm
+| Access
+
+| zerotier-k8s-link
+| ZeroTier overlay mesh
+| Overlay
+
+| ipfs-overlay
+| Private IPFS cluster
+| Storage
+
+| ipv6-site-enforcer
+| IPv6-only enforcement
+| Network
+
+| hesiod-dns-map
+| Hesiod DNS service discovery
+| Naming
+
+| bgp-backbone-lab
+| BGP routing simulation
+| Network
+
+| flatracoon-os
+| Microkernel container OS
+| Platform
+
+| network-dashboard
+| Real-time monitoring
+| Observability
+|===
+
+=== MCP Integrations
+
+[cols="1,2"]
+|===
+| Module | Purpose
+
+| poly-k8s-mcp
+| Kubernetes orchestration (kubectl, Helm, Kustomize)
+
+| poly-secret-mcp
+| Secrets management (Vault, SOPS)
+
+| poly-observability-mcp
+| Observability (Prometheus, Grafana, Loki, Jaeger)
+|===
+
+== Status
+
+[horizontal]
+Phase:: Scaffolding
+Completion:: 10%
+Next:: Elixir orchestrator initialization and submodule linking
+
+== License
+
+AGPL-3.0-or-later
