@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # SPDX-FileCopyrightText: 2025 Hyperpolymath <hyperpolymath@proton.me>
 #
-# FlatRacoon Network Stack - Mustfile Configuration
-# Type-safe, contract-driven deployment orchestration via Nickel
+# FlatRacoon Network Stack - Mustfile
+# Type-safe, contract-driven deployment orchestration
+# Like Justfile for Just, Mustfile for Must (powered by Nickel)
 
 let MustSpec = {
   version = "1.0.0",

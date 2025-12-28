@@ -86,19 +86,37 @@ interface-run:
     cd interface && deno task start
 
 # =============================================================================
-# Configuration (Nickel)
+# Configuration (Nickel / Must)
 # =============================================================================
 
-# Validate all Nickel configurations
+# Validate all Nickel configurations including Mustfile
 config-validate:
     @echo "Validating Nickel configurations..."
+    nickel export Mustfile > /dev/null
     nickel export configs/base.ncl > /dev/null
     nickel export configs/modules.ncl > /dev/null
+    nickel export configs/environments.ncl > /dev/null
     @echo "✓ All configurations valid"
 
-# Export configuration to JSON
+# Export Mustfile to JSON
+must-export:
+    nickel export Mustfile
+
+# Export specific config to JSON
 config-export target="base":
     nickel export configs/{{target}}.ncl
+
+# Show deployment order from Mustfile
+must-order:
+    @nickel export Mustfile | jq -r '.deployment_order[]'
+
+# Show module info from Mustfile
+must-modules:
+    @nickel export Mustfile | jq '.modules'
+
+# Show environment config
+must-env env="development":
+    @nickel export configs/environments.ncl | jq '.environments.{{env}}'
 
 # =============================================================================
 # Secrets Management

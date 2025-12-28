@@ -82,10 +82,10 @@ configuration, health checks, and lifecycle events.
 | Deno / ReScript
 
 | Configuration
-| Nickel (via mustfile)
+| Nickel (via Mustfile)
 
 | Task Runner
-| Just + mustfile
+| Just + Must
 
 | Secrets
 | poly-secret-mcp (Vault/SOPS)
@@ -149,7 +149,7 @@ flatracoon-netstack/
 ├── docs/                  # Extended documentation
 ├── .github/workflows/     # CI/CD
 ├── Justfile               # Task runner
-├── must.ncl               # Mustfile configuration
+├── Mustfile               # Must configuration (Nickel)
 ├── STATE.scm              # Project state
 ├── META.scm               # Architecture decisions
 ├── ECOSYSTEM.scm          # Ecosystem relationships
