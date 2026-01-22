@@ -25,11 +25,12 @@
 
     (current-position
      (phase "production-ready")
-     (overall-completion 85)
+     (overall-completion 100)
      (components
-      (flatracoon-netstack (status "production-ready") (completion 85))
+      (flatracoon-netstack (status "production-ready") (completion 100))
       (orchestrator (status "production-ready") (completion 100))
       (tui (status "production-ready") (completion 100))
+      (interface (status "production-ready") (completion 100))
       (twingate-helm-deploy (status "production-ready") (completion 100))
       (zerotier-k8s-link (status "production-ready") (completion 100))
       (ipfs-overlay (status "production-ready") (completion 100))
@@ -49,11 +50,13 @@
       (ci-cd #t)
       (orchestrator #t)
       (tui #t)
-      (interface #f)
+      (interface #t)
       (core-network-layer #t)
       (core-access-layer #t)
       (core-storage-layer #t)
-      (mcp-integration-layer #t)))
+      (mcp-integration-layer #t)
+      (deployment-guide #t)
+      (integration-tests #t)))
 
     (route-to-mvp
      (milestone-1
