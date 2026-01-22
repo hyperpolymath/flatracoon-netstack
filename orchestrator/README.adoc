@@ -1,0 +1,194 @@
+// SPDX-License-Identifier: PMPL-1.0-or-later
+= FlatRacoon Orchestrator
+
+Phoenix LiveView orchestrator for the FlatRacoon Network Stack.
+
+== Features
+
+* *Module Registry* - Central registry tracking all stack components
+* *Health Monitoring* - Automated health checks every 30 seconds
+* *LiveView Dashboard* - Real-time monitoring UI with layer filtering
+* *Dependency Resolution* - Topological sort for correct deployment order
+* *Multi-mode Deployment* - Supports Helm, kubectl, DaemonSet, StatefulSet
+
+== Architecture
+
+[source]
+----
+┌──────────────────────────────────────────────┐
+│  Phoenix LiveView UI                         │
+│  ├── DashboardLive (/)                       │
+│  └── Real-time module status updates         │
+├──────────────────────────────────────────────┤
+│  Orchestrator Services (GenServers)          │
+│  ├── ModuleRegistry                          │
+│  │   ├── Manifest tracking                   │
+│  │   ├── Status management                   │
+│  │   └── Dependency graph                    │
+│  └── HealthMonitor                           │
+│      ├── Periodic health checks              │
+│      ├── Kubernetes API polling              │
+│      └── Status updates                      │
+├──────────────────────────────────────────────┤
+│  External Integrations                       │
+│  ├── kubectl (pod/daemonset/statefulset)     │
+│  ├── Helm (release status)                   │
+│  └── Future: MCP clients                     │
+└──────────────────────────────────────────────┘
+----
+
+== Quick Start
+
+[source,bash]
+----
+# Install dependencies
+mix deps.get
+
+# Compile assets
+mix assets.setup
+
+# Start the orchestrator
+mix phx.server
+
+# Open dashboard
+open http://localhost:4000
+----
+
+== Environment Variables
+
+[source,bash]
+----
+# Phoenix config
+export SECRET_KEY_BASE=$(mix phx.gen.secret)
+export PHX_HOST=localhost
+export PORT=4000
+
+# Kubernetes access
+export KUBECONFIG=~/.kube/config
+----
+
+== Module Manifests
+
+Each FlatRacoon module exposes a manifest consumed by the registry:
+
+[source,elixir]
+----
+%{
+  name: "module-name",
+  version: "0.1.0",
+  layer: :access | :overlay | :storage | :mcp,
+  repo: "https://github.com/hyperpolymath/repo",
+  requires: ["dependency-1", "dependency-2"],
+  provides: ["capability-1", "capability-2"],
+  config_schema: "configs/schema.ncl",
+  health_endpoint: "/health",
+  metrics_endpoint: "/metrics",
+  deployment_mode: :helm | :kubectl | :daemonset | :statefulset,
+  namespace: "system-namespace"
+}
+----
+
+== Deployment Order
+
+The orchestrator uses dependency information to compute a topological sort:
+
+[source,bash]
+----
+1. zerotier-k8s-link (no dependencies)
+2. twingate-helm-deploy (no dependencies)
+3. ipfs-overlay (requires: zerotier-k8s-link)
+4. network-dashboard (requires: all)
+----
+
+== Dashboard UI
+
+The LiveView dashboard provides:
+
+* *Status Overview* - Count of modules by status (healthy, degraded, failed)
+* *Layer Filtering* - View modules by layer (Access, Overlay, Storage, MCP)
+* *Module Cards* - Individual status, metrics, and health check buttons
+* *Real-time Updates* - Auto-refresh every 5 seconds
+* *Manual Checks* - "Check Health" per module or "Check All Health"
+
+== Module Status States
+
+[cols="1,3"]
+|===
+|Status |Description
+
+|`not_deployed`
+|Module has not been deployed to Kubernetes
+
+|`deploying`
+|Deployment in progress
+
+|`healthy`
+|All pods/replicas running and ready
+
+|`degraded`
+|Some pods running but not all ready
+
+|`failed`
+|Deployment failed or no pods running
+|===
+
+== Health Check Logic
+
+The `HealthMonitor` performs periodic checks:
+
+* *Helm* - `helm status <name> -n <namespace>`
+* *DaemonSet* - Check `desiredNumberScheduled` vs `numberReady`
+* *StatefulSet* - Check `replicas` vs `readyReplicas`
+* *kubectl* - Count running pods in namespace
+
+Checks run every 30 seconds. Manual checks available via dashboard.
+
+== Development
+
+[source,bash]
+----
+# Run tests
+mix test
+
+# Format code
+mix format
+
+# Type checking (if dialyzer configured)
+mix dialyzer
+
+# Start IEx session
+iex -S mix phx.server
+----
+
+== Testing Health Checks
+
+[source,elixir]
+----
+# In IEx
+alias FlatracoonOrchestrator.{ModuleRegistry, HealthMonitor}
+
+# List all modules
+ModuleRegistry.list_modules()
+
+# Check specific module
+HealthMonitor.check_module("zerotier-k8s-link")
+
+# Check all modules
+HealthMonitor.check_all()
+
+# Get deployment order
+ModuleRegistry.deployment_order()
+----
+
+== Future Enhancements
+
+* MCP client integration for poly-k8s-mcp, poly-secret-mcp, poly-observability-mcp
+* Deployment orchestration (auto-deploy in dependency order)
+* Configuration validation via Nickel schema checking
+* Drift detection and automated repair
+* Integration with network-dashboard (Elixir-to-Elixir communication)
+* Historical metrics and alerting
+
+== License
+
+PMPL-1.0-or-later
