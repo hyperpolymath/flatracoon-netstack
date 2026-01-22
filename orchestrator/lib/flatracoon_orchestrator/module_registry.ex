@@ -10,6 +10,8 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
   use GenServer
   require Logger
 
+  alias FlatracoonOrchestrator.ModuleDiscovery
+
   @type module_status :: :not_deployed | :deploying | :healthy | :degraded | :failed
   @type module_layer ::
           :access
@@ -151,7 +153,18 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
   @impl true
   def init(_) do
     # Initial state: map of module_name => module_state
-    state = load_default_manifests()
+    # Try to discover modules from manifest directories
+    state =
+      case FlatracoonOrchestrator.ModuleDiscovery.discover_modules() do
+        modules when map_size(modules) > 0 ->
+          Logger.info("Loaded #{map_size(modules)} modules from discovery")
+          modules
+
+        _empty ->
+          Logger.warning("No modules discovered, using fallback definitions")
+          FlatracoonOrchestrator.ModuleDiscovery.fallback_modules()
+      end
+
     Logger.info("ModuleRegistry initialized with #{map_size(state)} modules")
     {:ok, state}
   end
@@ -303,69 +316,6 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
   end
 
   ## Private Functions
-
-  defp load_default_manifests do
-    # Load manifests from ../modules/* directories
-    %{
-      "twingate-helm-deploy" => %{
-        manifest: %{
-          name: "twingate-helm-deploy",
-          version: "0.1.0",
-          layer: :access,
-          repo: "https://github.com/hyperpolymath/twingate-helm-deploy",
-          requires: [],
-          provides: ["secure-access", "zero-trust-network"],
-          config_schema: "configs/production.ncl",
-          health_endpoint: nil,
-          metrics_endpoint: nil,
-          deployment_mode: :helm,
-          namespace: "twingate-system"
-        },
-        status: :not_deployed,
-        last_health_check: nil,
-        error_message: nil,
-        metrics: %{}
-      },
-      "zerotier-k8s-link" => %{
-        manifest: %{
-          name: "zerotier-k8s-link",
-          version: "0.1.0",
-          layer: :overlay,
-          repo: "https://github.com/hyperpolymath/zerotier-k8s-link",
-          requires: [],
-          provides: ["overlay-network", "encrypted-mesh"],
-          config_schema: "configs/network.ncl",
-          health_endpoint: nil,
-          metrics_endpoint: nil,
-          deployment_mode: :daemonset,
-          namespace: "zerotier-system"
-        },
-        status: :not_deployed,
-        last_health_check: nil,
-        error_message: nil,
-        metrics: %{}
-      },
-      "ipfs-overlay" => %{
-        manifest: %{
-          name: "ipfs-overlay",
-          version: "0.1.0",
-          layer: :storage,
-          repo: "https://github.com/hyperpolymath/ipfs-overlay",
-          requires: ["zerotier-k8s-link"],
-          provides: ["distributed-storage", "ipfs-cluster"],
-          config_schema: "configs/ipfs.ncl",
-          health_endpoint: nil,
-          metrics_endpoint: nil,
-          deployment_mode: :statefulset,
-          namespace: "ipfs-system"
-        },
-        status: :not_deployed,
-        last_health_check: nil,
-        error_message: nil,
-        metrics: %{}
-      }
-    }
-  end
 
   defp topological_sort(state) do
     # Build adjacency list: module -> [dependencies]
