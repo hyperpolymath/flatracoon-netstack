@@ -21,10 +21,20 @@ defmodule FlatracoonOrchestratorWeb.Router do
     get "/page", PageController, :home
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", FlatracoonOrchestratorWeb do
-  #   pipe_through :api
-  # end
+  # API routes for TUI and external clients
+  scope "/api", FlatracoonOrchestratorWeb do
+    pipe_through :api
+
+    get "/modules", ApiController, :list_modules
+    get "/modules/:name", ApiController, :get_module
+    get "/health", ApiController, :health_summary
+    get "/deployment_order", ApiController, :deployment_order
+    post "/deploy", ApiController, :deploy_all
+    post "/deploy/:name", ApiController, :deploy_module
+    post "/restart/:name", ApiController, :restart_module
+    post "/stop/:name", ApiController, :stop_module
+    get "/logs/:name", ApiController, :get_logs
+  end
 
   # Enable LiveDashboard in development
   if Application.compile_env(:flatracoon_orchestrator, :dev_routes) do
