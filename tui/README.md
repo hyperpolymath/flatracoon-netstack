@@ -111,5 +111,5 @@ See [SEAM_ANALYSIS.adoc](../SEAM_ANALYSIS.adoc) for comprehensive analysis. Key 
 
 ## License
 
-AGPL-3.0-or-later (Ada/SPARK code)
+MPL-2.0-or-later (Ada/SPARK code)
 See [palimpsest-license](https://github.com/hyperpolymath/palimpsest-license) for philosophy.
