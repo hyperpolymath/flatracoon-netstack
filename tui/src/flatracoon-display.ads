@@ -2,7 +2,6 @@
 -- FlatRacoon TUI - Display utilities
 
 package FlatRacoon.Display is
-   pragma Pure;
 
    -- Show FlatRacoon banner
    procedure Show_Banner;

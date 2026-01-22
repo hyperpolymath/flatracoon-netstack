@@ -8,7 +8,7 @@ project FlatRacoon_TUI is
    for Main use ("flatracoon_tui.adb");
 
    package Compiler is
-      for Switches ("ada") use ("-gnat2022", "-gnata", "-gnatwa", "-gnatwe", "-O2");
+      for Switches ("ada") use ("-gnat2022", "-gnata", "-gnatwa", "-O2");
    end Compiler;
 
    package Binder is

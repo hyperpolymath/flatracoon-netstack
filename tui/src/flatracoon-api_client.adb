@@ -26,15 +26,10 @@ package body FlatRacoon.API_Client is
       Channel  : Stream_Access;
       Response : Ada.Strings.Unbounded.Unbounded_String;
 
-      -- Parse URL to extract host and path
-      Full_URL : constant String := Base_URL (1 .. URL_Length) & Endpoint;
       Host     : constant String := "localhost";
       Port     : constant Port_Type := 4000;
       Path     : constant String := Endpoint;
    begin
-      -- Initialize sockets
-      Initialize;
-
       -- Create socket
       Create_Socket (Socket);
 
@@ -54,51 +49,63 @@ package body FlatRacoon.API_Client is
 
       -- Read response
       declare
-         Buffer : String (1 .. 4096);
-         Last   : Natural;
          In_Body : Boolean := False;
       begin
          loop
-            String'Read (Channel, Buffer (1 .. 100), Last);
-            exit when Last = 0;
+            declare
+               Char : Character;
+            begin
+               Character'Read (Channel, Char);
 
-            -- Simple header/body separation
-            if not In_Body then
-               if Index (Buffer (1 .. Last), ASCII.CR & ASCII.LF & ASCII.CR & ASCII.LF) > 0 then
-                  In_Body := True;
-                  -- Extract body portion
+               -- Simple header/body separation
+               if not In_Body then
                   declare
-                     Body_Start : constant Natural :=
-                        Index (Buffer (1 .. Last), ASCII.CR & ASCII.LF & ASCII.CR & ASCII.LF) + 4;
+                     Current : constant String := To_String (Response);
                   begin
-                     if Body_Start <= Last then
-                        Append (Response, Buffer (Body_Start .. Last));
+                     if Current'Length >= 4 and then
+                        Current (Current'Last - 3 .. Current'Last) =
+                           ASCII.CR & ASCII.LF & ASCII.CR & ASCII.LF
+                     then
+                        In_Body := True;
+                        Response := To_Unbounded_String ("");  -- Clear headers
                      end if;
                   end;
                end if;
-            else
-               Append (Response, Buffer (1 .. Last));
-            end if;
+
+               if In_Body then
+                  Append (Response, Char);
+               else
+                  Append (Response, Char);  -- Accumulate headers
+               end if;
+            end;
          end loop;
+      exception
+         when End_Error =>
+            null;  -- Normal end of stream
       end;
 
       -- Clean up
       Close_Socket (Socket);
-      Finalize;
 
       return To_String (Response);
    exception
       when E : Socket_Error =>
-         Close_Socket (Socket);
-         Finalize;
+         begin
+            Close_Socket (Socket);
+         exception
+            when others => null;
+         end;
          raise Program_Error with "HTTP GET failed: " & Exception_Message (E);
       when E : others =>
-         Close_Socket (Socket);
-         Finalize;
+         begin
+            Close_Socket (Socket);
+         exception
+            when others => null;
+         end;
          raise Program_Error with "HTTP GET error: " & Exception_Message (E);
    end HTTP_GET;
 
-   procedure HTTP_POST (Endpoint : String; Body : String := "") is
+   procedure HTTP_POST (Endpoint : String; Request_Body : String := "") is
       use GNAT.Sockets;
 
       Address : Sock_Addr_Type;
@@ -109,9 +116,6 @@ package body FlatRacoon.API_Client is
       Port : constant Port_Type := 4000;
       Path : constant String := Endpoint;
    begin
-      -- Initialize sockets
-      Initialize;
-
       -- Create socket
       Create_Socket (Socket);
 
@@ -127,25 +131,30 @@ package body FlatRacoon.API_Client is
       String'Write (Channel, "POST " & Path & " HTTP/1.1" & ASCII.CR & ASCII.LF);
       String'Write (Channel, "Host: " & Host & ASCII.CR & ASCII.LF);
       String'Write (Channel, "Content-Type: application/json" & ASCII.CR & ASCII.LF);
-      String'Write (Channel, "Content-Length:" & Body'Length'Image & ASCII.CR & ASCII.LF);
+      String'Write (Channel, "Content-Length:" & Request_Body'Length'Image & ASCII.CR & ASCII.LF);
       String'Write (Channel, "Connection: close" & ASCII.CR & ASCII.LF);
       String'Write (Channel, ASCII.CR & ASCII.LF);
 
-      if Body'Length > 0 then
-         String'Write (Channel, Body);
+      if Request_Body'Length > 0 then
+         String'Write (Channel, Request_Body);
       end if;
 
       -- Clean up
       Close_Socket (Socket);
-      Finalize;
    exception
       when E : Socket_Error =>
-         Close_Socket (Socket);
-         Finalize;
+         begin
+            Close_Socket (Socket);
+         exception
+            when others => null;
+         end;
          raise Program_Error with "HTTP POST failed: " & Exception_Message (E);
       when E : others =>
-         Close_Socket (Socket);
-         Finalize;
+         begin
+            Close_Socket (Socket);
+         exception
+            when others => null;
+         end;
          raise Program_Error with "HTTP POST error: " & Exception_Message (E);
    end HTTP_POST;
 

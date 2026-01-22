@@ -35,13 +35,18 @@ begin
 
       loop
          Put ("flatracoon> ");
-         Get_Line (Command);
 
-         exit when Command = "exit" or Command = "quit";
+         declare
+            Input : constant String := Get_Line;
+         begin
+            Command := To_Unbounded_String (Input);
 
-         if Command /= "" then
-            FlatRacoon.Commands.Parse_And_Execute (To_String (Command));
-         end if;
+            exit when Input = "exit" or Input = "quit";
+
+            if Input /= "" then
+               FlatRacoon.Commands.Parse_And_Execute (Input);
+            end if;
+         end;
       end loop;
 
       Put_Line ("Goodbye!");

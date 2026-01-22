@@ -2,7 +2,6 @@
 -- FlatRacoon TUI - Root package
 
 package FlatRacoon is
-   pragma Pure;
 
    -- Version information
    Version_Major : constant := 0;

@@ -72,7 +72,7 @@ private
 
    -- HTTP client utilities
    function HTTP_GET (Endpoint : String) return String;
-   procedure HTTP_POST (Endpoint : String; Body : String := "");
+   procedure HTTP_POST (Endpoint : String; Request_Body : String := "");
 
    -- JSON parsing helpers
    function Parse_Modules_JSON (JSON : String) return Module_List;
