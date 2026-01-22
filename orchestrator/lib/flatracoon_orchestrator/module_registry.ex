@@ -106,6 +106,46 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
     GenServer.call(__MODULE__, :deployment_order)
   end
 
+  @doc """
+  Deploy all modules in dependency order.
+  """
+  @spec deploy_all() :: :ok | {:error, term()}
+  def deploy_all do
+    GenServer.call(__MODULE__, :deploy_all, :infinity)
+  end
+
+  @doc """
+  Deploy a specific module.
+  """
+  @spec deploy_module(String.t()) :: :ok | {:error, :not_found} | {:error, term()}
+  def deploy_module(name) do
+    GenServer.call(__MODULE__, {:deploy_module, name}, 60_000)
+  end
+
+  @doc """
+  Restart a specific module.
+  """
+  @spec restart_module(String.t()) :: :ok | {:error, :not_found} | {:error, term()}
+  def restart_module(name) do
+    GenServer.call(__MODULE__, {:restart_module, name}, 60_000)
+  end
+
+  @doc """
+  Stop a specific module.
+  """
+  @spec stop_module(String.t()) :: :ok | {:error, :not_found} | {:error, term()}
+  def stop_module(name) do
+    GenServer.call(__MODULE__, {:stop_module, name}, 60_000)
+  end
+
+  @doc """
+  Get logs for a specific module.
+  """
+  @spec get_logs(String.t(), non_neg_integer()) :: {:ok, String.t()} | {:error, :not_found} | {:error, term()}
+  def get_logs(name, lines \\ 50) do
+    GenServer.call(__MODULE__, {:get_logs, name, lines})
+  end
+
   ## Server Callbacks
 
   @impl true
@@ -163,6 +203,73 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
     case topological_sort(state) do
       {:ok, order} -> {:reply, {:ok, order}, state}
       {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
+  def handle_call(:deploy_all, _from, state) do
+    case topological_sort(state) do
+      {:ok, order} ->
+        result =
+          Enum.reduce_while(order, :ok, fn name, _ ->
+            case do_deploy_module(name, Map.get(state, name)) do
+              :ok -> {:cont, :ok}
+              {:error, reason} -> {:halt, {:error, {name, reason}}}
+            end
+          end)
+
+        {:reply, result, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:deploy_module, name}, _from, state) do
+    case Map.get(state, name) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      module_state ->
+        result = do_deploy_module(name, module_state)
+        {:reply, result, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:restart_module, name}, _from, state) do
+    case Map.get(state, name) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      module_state ->
+        result = do_restart_module(name, module_state)
+        {:reply, result, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:stop_module, name}, _from, state) do
+    case Map.get(state, name) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      module_state ->
+        result = do_stop_module(name, module_state)
+        {:reply, result, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:get_logs, name, lines}, _from, state) do
+    case Map.get(state, name) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      module_state ->
+        result = do_get_logs(name, module_state, lines)
+        {:reply, result, state}
     end
   end
 
@@ -316,5 +423,194 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
       end)
 
     do_topological_sort(graph, new_in_degree, new_queue, new_result)
+  end
+
+  # Deployment helper functions with exit code verification
+
+  defp do_deploy_module(name, module_state) do
+    Logger.info("Deploying module: #{name}")
+
+    manifest = module_state.manifest
+    namespace = manifest.namespace
+    deployment_mode = manifest.deployment_mode
+
+    # Update status to deploying
+    update_status(name, :deploying)
+
+    case deployment_mode do
+      :helm ->
+        deploy_helm_module(name, manifest, namespace)
+
+      :kubectl ->
+        deploy_kubectl_module(name, manifest, namespace)
+
+      mode when mode in [:daemonset, :statefulset] ->
+        deploy_kubectl_module(name, manifest, namespace)
+
+      _ ->
+        {:error, "Unsupported deployment mode: #{deployment_mode}"}
+    end
+  end
+
+  defp deploy_helm_module(name, manifest, namespace) do
+    chart_path = "../modules/#{manifest.repo |> String.split("/") |> List.last()}"
+
+    # Run helm install/upgrade with exit code checking
+    {output, exit_code} =
+      System.cmd("helm", [
+        "upgrade",
+        "--install",
+        name,
+        chart_path,
+        "--namespace",
+        namespace,
+        "--create-namespace",
+        "--wait",
+        "--timeout",
+        "5m"
+      ], stderr_to_stdout: true)
+
+    case exit_code do
+      0 ->
+        update_status(name, :healthy)
+        verify_deployment(name, namespace)
+
+      _ ->
+        Logger.error("Helm deployment failed for #{name}: #{output}")
+        update_status(name, :failed, "Helm deployment failed: #{String.slice(output, 0, 200)}")
+        {:error, "Helm deployment failed with exit code #{exit_code}"}
+    end
+  end
+
+  defp deploy_kubectl_module(name, manifest, namespace) do
+    manifest_path = "../modules/#{manifest.repo |> String.split("/") |> List.last()}/manifests/"
+
+    # Run kubectl apply with exit code checking
+    {output, exit_code} =
+      System.cmd("kubectl", [
+        "apply",
+        "-f",
+        manifest_path,
+        "--namespace",
+        namespace
+      ], stderr_to_stdout: true)
+
+    case exit_code do
+      0 ->
+        update_status(name, :deploying)
+        verify_deployment(name, namespace)
+
+      _ ->
+        Logger.error("Kubectl deployment failed for #{name}: #{output}")
+        update_status(name, :failed, "Kubectl deployment failed: #{String.slice(output, 0, 200)}")
+        {:error, "Kubectl deployment failed with exit code #{exit_code}"}
+    end
+  end
+
+  defp verify_deployment(name, namespace) do
+    # Poll deployment status for up to 30 seconds
+    max_attempts = 30
+    verify_deployment_loop(name, namespace, max_attempts)
+  end
+
+  defp verify_deployment_loop(_name, _namespace, 0) do
+    {:error, "Deployment verification timeout"}
+  end
+
+  defp verify_deployment_loop(name, namespace, attempts_left) do
+    {_output, exit_code} =
+      System.cmd("kubectl", [
+        "rollout",
+        "status",
+        "deployment/#{name}",
+        "--namespace",
+        namespace,
+        "--timeout",
+        "1s"
+      ], stderr_to_stdout: true)
+
+    case exit_code do
+      0 ->
+        update_status(name, :healthy)
+        :ok
+
+      _ ->
+        # Wait 1 second and retry
+        Process.sleep(1000)
+        verify_deployment_loop(name, namespace, attempts_left - 1)
+    end
+  end
+
+  defp do_restart_module(name, module_state) do
+    Logger.info("Restarting module: #{name}")
+    namespace = module_state.manifest.namespace
+
+    {output, exit_code} =
+      System.cmd("kubectl", [
+        "rollout",
+        "restart",
+        "deployment/#{name}",
+        "--namespace",
+        namespace
+      ], stderr_to_stdout: true)
+
+    case exit_code do
+      0 ->
+        update_status(name, :deploying)
+        verify_deployment(name, namespace)
+
+      _ ->
+        Logger.error("Restart failed for #{name}: #{output}")
+        update_status(name, :failed, "Restart failed: #{String.slice(output, 0, 200)}")
+        {:error, "Restart failed with exit code #{exit_code}"}
+    end
+  end
+
+  defp do_stop_module(name, module_state) do
+    Logger.info("Stopping module: #{name}")
+    namespace = module_state.manifest.namespace
+
+    {output, exit_code} =
+      System.cmd("kubectl", [
+        "scale",
+        "deployment/#{name}",
+        "--replicas=0",
+        "--namespace",
+        namespace
+      ], stderr_to_stdout: true)
+
+    case exit_code do
+      0 ->
+        update_status(name, :not_deployed)
+        :ok
+
+      _ ->
+        Logger.error("Stop failed for #{name}: #{output}")
+        update_status(name, :failed, "Stop failed: #{String.slice(output, 0, 200)}")
+        {:error, "Stop failed with exit code #{exit_code}"}
+    end
+  end
+
+  defp do_get_logs(name, module_state, lines) do
+    namespace = module_state.manifest.namespace
+
+    {output, exit_code} =
+      System.cmd("kubectl", [
+        "logs",
+        "deployment/#{name}",
+        "--namespace",
+        namespace,
+        "--tail=#{lines}",
+        "--all-containers=true"
+      ], stderr_to_stdout: true)
+
+    case exit_code do
+      0 ->
+        {:ok, output}
+
+      _ ->
+        Logger.error("Get logs failed for #{name}: #{output}")
+        {:error, "Get logs failed with exit code #{exit_code}"}
+    end
   end
 end
