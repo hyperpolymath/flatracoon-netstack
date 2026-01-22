@@ -1,11 +1,13 @@
 -- SPDX-License-Identifier: MPL-2.0-or-later
 -- FlatRacoon TUI - API Client implementation
+-- Uses GNATCOLL.JSON for robust JSON parsing
 
 with Ada.Text_IO; use Ada.Text_IO;
 with Ada.Strings.Fixed; use Ada.Strings.Fixed;
 with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Exceptions; use Ada.Exceptions;
 with GNAT.Sockets;
+with GNATCOLL.JSON; use GNATCOLL.JSON;
 
 package body FlatRacoon.API_Client is
 
@@ -364,189 +366,126 @@ package body FlatRacoon.API_Client is
    function Get_Logs (Name : String; Lines : Positive := 50) return String is
       JSON_Response : constant String :=
          HTTP_GET ("/api/logs/" & Name & "?lines=" & Lines'Image);
-
-      -- Extract logs from JSON response
-      Logs_Start : constant Natural := Index (JSON_Response, """logs"":");
+      Val : JSON_Value;
    begin
-      if Logs_Start = 0 then
+      -- Parse JSON using GNATCOLL.JSON
+      Val := Read (JSON_Response, "logs response");
+
+      if Has_Field (Val, "logs") then
+         return Get (Val, "logs");
+      else
          return "No logs available";
       end if;
-
-      -- Simple extraction of logs value
-      declare
-         Value_Start : Natural := Index (JSON_Response (Logs_Start .. JSON_Response'Last), """");
-         Value_End : Natural;
-      begin
-         if Value_Start = 0 then
-            return "No logs available";
-         end if;
-
-         Value_Start := Value_Start + 1;
-         Value_End := Index (JSON_Response (Value_Start .. JSON_Response'Last), """") - 1;
-
-         if Value_End < Value_Start then
-            return "No logs available";
-         end if;
-
-         return JSON_Response (Value_Start .. Value_End);
-      end;
    exception
       when E : others =>
          return "Error retrieving logs: " & Exception_Message (E);
    end Get_Logs;
 
+   -- Parse modules JSON using GNATCOLL.JSON
    function Parse_Modules_JSON (JSON : String) return Module_List is
       Result : Module_List;
-
-      -- Simple JSON parser for modules array
-      function Extract_String_Value (JSON : String; Key : String) return String is
-         Key_Pos : constant Natural := Index (JSON, """" & Key & """:");
-      begin
-         if Key_Pos = 0 then
-            return "";
-         end if;
-
-         -- Find the value after the key
-         declare
-            Value_Start : Natural := Index (JSON (Key_Pos .. JSON'Last), """", Key_Pos + Key'Length + 3);
-            Value_End   : Natural;
-         begin
-            if Value_Start = 0 then
-               return "";
-            end if;
-
-            Value_Start := Value_Start + 1;
-            Value_End := Index (JSON (Value_Start .. JSON'Last), """") - 1;
-
-            if Value_End < Value_Start then
-               return "";
-            end if;
-
-            return JSON (Value_Start .. Value_End);
-         end;
-      end Extract_String_Value;
-
-      function Extract_Int_Value (JSON : String; Key : String) return Natural is
-         Val_Str : constant String := Extract_String_Value (JSON, Key);
-      begin
-         if Val_Str'Length = 0 then
-            return 0;
-         end if;
-         return Natural'Value (Val_Str);
-      exception
-         when others =>
-            return 0;
-      end Extract_Int_Value;
-
-      Modules_Start : Natural;
-      Current_Pos   : Natural;
+      Root : JSON_Value;
+      Modules_Array : JSON_Array;
    begin
-      -- Find "modules" array
-      Modules_Start := Index (JSON, """modules"":[");
-      if Modules_Start = 0 then
+      -- Parse JSON
+      Root := Read (JSON, "modules response");
+
+      -- Validate root has "modules" field
+      if not Has_Field (Root, "modules") then
+         Put_Line ("Warning: JSON response missing 'modules' field");
          return Result;
       end if;
 
-      Current_Pos := Modules_Start + 11;  -- Skip past "modules":[
+      -- Get modules array
+      Modules_Array := Get (Root, "modules");
 
-      -- Parse each module object
-      while Current_Pos < JSON'Last loop
+      -- Parse each module
+      for I in 1 .. Length (Modules_Array) loop
          declare
-            Obj_Start : constant Natural := Index (JSON (Current_Pos .. JSON'Last), "{");
-            Obj_End   : Natural;
-            M         : Module_Info;
+            Module_Obj : constant JSON_Value := Get (Modules_Array, I);
+            M : Module_Info;
+            Name_Str : constant String := Get (Get (Module_Obj, "manifest"), "name");
+            Status_Str : constant String := Get (Module_Obj, "status");
+            Layer_Str : constant String := Get (Get (Module_Obj, "manifest"), "layer");
+            Version_Str : constant String := Get (Get (Module_Obj, "manifest"), "version");
          begin
-            exit when Obj_Start = 0;
+            -- Fill module info
+            M.Name (1 .. Integer'Min (Name_Str'Length, 50)) :=
+               Name_Str (1 .. Integer'Min (Name_Str'Length, 50));
 
-            Obj_End := Index (JSON (Obj_Start .. JSON'Last), "}");
-            exit when Obj_End = 0;
+            -- Parse status
+            if Status_Str = "healthy" or Status_Str = "deploying" then
+               M.Status := Running;
+            elsif Status_Str = "not_deployed" then
+               M.Status := Stopped;
+            elsif Status_Str = "degraded" then
+               M.Status := Pending;
+            else
+               M.Status := Error;
+            end if;
 
-            declare
-               Obj : constant String := JSON (Obj_Start .. Obj_End);
-               Name_Str : constant String := Extract_String_Value (Obj, "name");
-               Status_Str : constant String := Extract_String_Value (Obj, "status");
-               Layer_Str : constant String := Extract_String_Value (Obj, "layer");
-               Version_Str : constant String := Extract_String_Value (Obj, "version");
-            begin
-               -- Fill module info
-               M.Name (1 .. Integer'Min (Name_Str'Length, 50)) :=
-                  Name_Str (1 .. Integer'Min (Name_Str'Length, 50));
-               M.Completion := Extract_Int_Value (Obj, "completion");
+            M.Layer (1 .. Integer'Min (Layer_Str'Length, 20)) :=
+               Layer_Str (1 .. Integer'Min (Layer_Str'Length, 20));
+            M.Version (1 .. Integer'Min (Version_Str'Length, 20)) :=
+               Version_Str (1 .. Integer'Min (Version_Str'Length, 20));
+            M.Completion := 100;  -- Default completion
 
-               -- Parse status
-               if Status_Str = "running" then
-                  M.Status := Running;
-               elsif Status_Str = "stopped" then
-                  M.Status := Stopped;
-               elsif Status_Str = "pending" then
-                  M.Status := Pending;
-               else
-                  M.Status := Error;
-               end if;
-
-               M.Layer (1 .. Integer'Min (Layer_Str'Length, 20)) :=
-                  Layer_Str (1 .. Integer'Min (Layer_Str'Length, 20));
-               M.Version (1 .. Integer'Min (Version_Str'Length, 20)) :=
-                  Version_Str (1 .. Integer'Min (Version_Str'Length, 20));
-
-               Result.Append (M);
-            end;
-
-            Current_Pos := Obj_End + 1;
+            Result.Append (M);
+         exception
+            when E : others =>
+               Put_Line ("Warning: Failed to parse module " & I'Image & ": " & Exception_Message (E));
          end;
       end loop;
 
       return Result;
    exception
-      when others =>
-         -- Return empty on parse error
+      when E : others =>
+         Put_Line ("Error parsing modules JSON: " & Exception_Message (E));
          Result.Clear;
          return Result;
    end Parse_Modules_JSON;
 
+   -- Parse health JSON using GNATCOLL.JSON
    function Parse_Health_JSON (JSON : String) return Health_Summary is
       Result : Health_Summary;
-
-      function Extract_Bool (JSON : String; Key : String) return Boolean is
-         Key_Pos : constant Natural := Index (JSON, """" & Key & """:");
-      begin
-         if Key_Pos = 0 then
-            return False;
-         end if;
-
-         return Index (JSON (Key_Pos .. JSON'Last), "true") > 0;
-      end Extract_Bool;
-
-      function Extract_Int (JSON : String; Key : String) return Natural is
-         Key_Pos : constant Natural := Index (JSON, """" & Key & """:");
-         Val_Start : Natural;
-         Val_End : Natural;
-      begin
-         if Key_Pos = 0 then
-            return 0;
-         end if;
-
-         Val_Start := Key_Pos + Key'Length + 3;
-         Val_End := Val_Start;
-
-         while Val_End <= JSON'Last and then JSON (Val_End) in '0' .. '9' loop
-            Val_End := Val_End + 1;
-         end loop;
-
-         return Natural'Value (JSON (Val_Start .. Val_End - 1));
-      exception
-         when others =>
-            return 0;
-      end Extract_Int;
+      Root : JSON_Value;
    begin
-      Result.All_Healthy := Extract_Bool (JSON, "all_healthy");
-      Result.Healthy_Count := Extract_Int (JSON, "healthy");
-      Result.Unhealthy_Count := Extract_Int (JSON, "unhealthy");
-      Result.Unknown_Count := Extract_Int (JSON, "unknown");
+      -- Parse JSON
+      Root := Read (JSON, "health response");
+
+      -- Extract health fields with defaults
+      if Has_Field (Root, "status") then
+         declare
+            Status_Val : constant Unbounded_String := Get (Root, "status");
+         begin
+            Result.All_Healthy := (To_String (Status_Val) = "healthy");
+         end;
+      else
+         Result.All_Healthy := False;
+      end if;
+
+      if Has_Field (Root, "healthy_count") then
+         Result.Healthy_Count := Get (Root, "healthy_count");
+      else
+         Result.Healthy_Count := 0;
+      end if;
+
+      if Has_Field (Root, "unhealthy_count") then
+         Result.Unhealthy_Count := Get (Root, "unhealthy_count");
+      else
+         Result.Unhealthy_Count := 0;
+      end if;
+
+      if Has_Field (Root, "degraded_count") then
+         Result.Unknown_Count := Get (Root, "degraded_count");
+      else
+         Result.Unknown_Count := 0;
+      end if;
 
       return Result;
    exception
-      when others =>
+      when E : others =>
+         Put_Line ("Error parsing health JSON: " & Exception_Message (E));
          Result.All_Healthy := False;
          Result.Healthy_Count := 0;
          Result.Unhealthy_Count := 0;
@@ -554,15 +493,18 @@ package body FlatRacoon.API_Client is
          return Result;
    end Parse_Health_JSON;
 
+   -- Parse deployment order JSON using GNATCOLL.JSON
    function Parse_Order_JSON (JSON : String) return Module_Name_List is
-      -- Parse deployment order array
-      Order_Start : constant Natural := Index (JSON, """order"":[");
-      Current_Pos : Natural;
+      Root : JSON_Value;
+      Order_Array : JSON_Array;
       Count : Natural := 0;
-      Names : array (1 .. 20) of String (1 .. 50);  -- Temporary storage
+      Names : array (1 .. 20) of String (1 .. 50) := (others => (others => ' '));
    begin
-      if Order_Start = 0 then
-         -- Return empty order
+      -- Parse JSON
+      Root := Read (JSON, "deployment order response");
+
+      -- Validate root has "order" field
+      if not Has_Field (Root, "order") then
          declare
             Empty : Module_Name_List (1 .. 0);
          begin
@@ -570,28 +512,18 @@ package body FlatRacoon.API_Client is
          end;
       end if;
 
-      Current_Pos := Order_Start + 9;  -- Skip past "order":[
+      -- Get order array
+      Order_Array := Get (Root, "order");
 
       -- Extract module names
-      while Current_Pos < JSON'Last and Count < 20 loop
+      for I in 1 .. Integer'Min (Length (Order_Array), 20) loop
+         Count := Count + 1;
          declare
-            Name_Start : constant Natural := Index (JSON (Current_Pos .. JSON'Last), """");
-            Name_End : Natural;
+            Item : constant JSON_Value := Get (Order_Array, I);
+            Name : constant String := To_String (GNATCOLL.JSON.Get (Item));
          begin
-            exit when Name_Start = 0;
-
-            Name_End := Index (JSON (Name_Start + 1 .. JSON'Last), """");
-            exit when Name_End = 0;
-
-            Count := Count + 1;
-            declare
-               Name : constant String := JSON (Name_Start + 1 .. Name_End - 1);
-            begin
-               Names (Count) (1 .. Integer'Min (Name'Length, 50)) :=
-                  Name (1 .. Integer'Min (Name'Length, 50));
-            end;
-
-            Current_Pos := Name_End + 1;
+            Names (Count) (1 .. Integer'Min (Name'Length, 50)) :=
+               Name (1 .. Integer'Min (Name'Length, 50));
          end;
       end loop;
 
@@ -605,7 +537,8 @@ package body FlatRacoon.API_Client is
          return Result;
       end;
    exception
-      when others =>
+      when E : others =>
+         Put_Line ("Error parsing deployment order JSON: " & Exception_Message (E));
          declare
             Empty : Module_Name_List (1 .. 0);
          begin
