@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: PMPL-1.0-or-later
 = FlatRacoon Orchestrator
 
+image:https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg[Status]
+image:https://img.shields.io/badge/Completion-100%25-success.svg[Completion]
+
 Phoenix LiveView orchestrator for the FlatRacoon Network Stack.
 
 == Features
@@ -8,6 +11,7 @@ Phoenix LiveView orchestrator for the FlatRacoon Network Stack.
 * *Module Registry* - Central registry tracking all stack components
 * *Health Monitoring* - Automated health checks every 30 seconds
 * *LiveView Dashboard* - Real-time monitoring UI with layer filtering
+* *REST API* - Full HTTP API for TUI and SDK integration
 * *Dependency Resolution* - Topological sort for correct deployment order
 * *Multi-mode Deployment* - Supports Helm, kubectl, DaemonSet, StatefulSet
 
@@ -131,6 +135,94 @@ The LiveView dashboard provides:
 |`failed`
 |Deployment failed or no pods running
 |===
+
+== REST API
+
+The orchestrator exposes a REST API for programmatic access (used by TUI and interface SDK):
+
+=== Health Endpoints
+
+[source,bash]
+----
+# Get overall health status
+GET /api/health
+
+# Response:
+{
+  "status": "healthy",
+  "modules": [
+    {"name": "zerotier-k8s-link", "status": "healthy"},
+    {"name": "twingate-helm-deploy", "status": "healthy"}
+  ]
+}
+----
+
+=== Module Endpoints
+
+[source,bash]
+----
+# List all modules
+GET /api/modules
+
+# Get specific module
+GET /api/modules/:name
+
+# Get deployment order
+GET /api/deployment_order
+----
+
+=== Deployment Endpoints
+
+[source,bash]
+----
+# Deploy all modules
+POST /api/deploy
+
+# Deploy specific module
+POST /api/deploy/:name
+
+# Restart module
+POST /api/restart/:name
+
+# Stop module
+POST /api/stop/:name
+----
+
+=== Logs Endpoints
+
+[source,bash]
+----
+# Get module logs
+GET /api/logs/:name?lines=100
+----
+
+**API Usage Examples:**
+
+Using curl:
+[source,bash]
+----
+curl http://localhost:4000/api/health
+curl http://localhost:4000/api/modules
+curl -X POST http://localhost:4000/api/deploy/zerotier-k8s-link
+----
+
+Using the Ada TUI:
+[source,bash]
+----
+flatracoon health
+flatracoon status
+flatracoon deploy zerotier-k8s-link
+----
+
+Using the ReScript SDK:
+[source,javascript]
+----
+import { make, getHealth, deployModule } from "@flatracoon/sdk";
+
+const client = make();
+const health = await getHealth(client);
+await deployModule(client, "zerotier-k8s-link");
+----
 
 == Health Check Logic
 

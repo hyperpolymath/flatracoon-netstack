@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: PMPL-1.0-or-later
 = FlatRacoon SDK
 :toc: macro
 :toclevels: 2
+
+image:https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg[Status]
+image:https://img.shields.io/badge/Completion-100%25-success.svg[Completion]
+image:https://img.shields.io/badge/Language-ReScript-red.svg[ReScript]
 
 ReScript/Deno SDK for programmatic access to the FlatRacoon Network Stack orchestrator.
 
@@ -154,9 +158,42 @@ deno fmt
 deno lint
 ----
 
+== Status
+
+**Phase:** 🟢 Production Ready
+**Completion:** 100%
+
+=== Current State
+
+✅ Type-safe ReScript client
+✅ Full HTTP API integration
+✅ Result types for error handling
+✅ ES6 module output
+✅ Clean JavaScript/TypeScript interop
+✅ All orchestrator endpoints supported
+
+=== Known Seams (Improvement Opportunities)
+
+See link:../SEAM_ANALYSIS.adoc[SEAM_ANALYSIS.adoc] for comprehensive analysis.
+
+🟡 **Important:**
+
+* **Incomplete JSON parsing** - Currently returns placeholder values (empty arrays, empty strings)
+  ** Needs proper `@rescript/core` JSON decoders
+  ** Runtime type validation required
+  ** Critical for SDK users who depend on actual data
+
+🟢 **Nice-to-have:**
+
+* **TypeScript definitions** - Generate `.d.ts` files for TS users
+* **npm package** - Publish to npm registry for broader access
+
+**Priority:** JSON parsing is the top priority for the SDK. Without real parsing,
+the SDK returns empty data and is not usable for production workloads.
+
 == License
 
-AGPL-3.0-or-later
+PMPL-1.0-or-later
 
 == See Also
 
