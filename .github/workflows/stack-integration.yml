@@ -28,7 +28,7 @@ jobs:
           otp-version: '26'
 
       - name: Cache deps
-        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v4
         with:
           path: orchestrator/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
