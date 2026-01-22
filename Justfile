@@ -106,6 +106,41 @@ must-export:
 config-export target="base":
     nickel export configs/{{target}}.ncl
 
+# Install system configuration (requires root)
+config-install-system:
+    @echo "Installing system configuration..."
+    configs/install.sh --system
+
+# Install user configuration
+config-install-user:
+    @echo "Installing user configuration..."
+    configs/install.sh --user
+
+# Install both system and user configuration
+config-install-all:
+    @echo "Installing all configuration files..."
+    configs/install.sh --all
+
+# Show current configuration paths (XDG-compliant)
+config-paths:
+    @echo "System config:  /etc/flatracoon/flatracoon.ncl"
+    @echo "User config:    ${XDG_CONFIG_HOME:-$$HOME/.config}/flatracoon/flatracoon.ncl"
+    @echo "Data dir:       ${XDG_DATA_HOME:-$$HOME/.local/share}/flatracoon/"
+    @echo "Cache dir:      ${XDG_CACHE_HOME:-$$HOME/.cache}/flatracoon/"
+    @echo "State dir:      ${XDG_STATE_HOME:-$$HOME/.local/state}/flatracoon/"
+
+# Validate system and user configs (if they exist)
+config-validate-all: config-validate
+    @echo "Validating installed configurations..."
+    @if [ -f /etc/flatracoon/flatracoon.ncl ]; then \
+        echo "Checking system config..."; \
+        nickel export /etc/flatracoon/flatracoon.ncl > /dev/null && echo "✓ System config valid"; \
+    fi
+    @if [ -f "${XDG_CONFIG_HOME:-$$HOME/.config}/flatracoon/flatracoon.ncl" ]; then \
+        echo "Checking user config..."; \
+        nickel export "${XDG_CONFIG_HOME:-$$HOME/.config}/flatracoon/flatracoon.ncl" > /dev/null && echo "✓ User config valid"; \
+    fi
+
 # Show deployment order from Mustfile
 must-order:
     @nickel export Mustfile | jq -r '.deployment_order[]'
