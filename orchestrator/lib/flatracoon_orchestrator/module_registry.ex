@@ -289,11 +289,15 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
   @impl true
   def handle_cast({:update_status, name, status, error_message}, state) do
     new_state =
-      Map.update(state, name, nil, fn module_state ->
-        if module_state do
-          %{module_state | status: status, error_message: error_message}
-        end
-      end)
+      case Map.get(state, name) do
+        nil ->
+          Logger.warning("Attempted to update status for non-existent module: #{name}")
+          state
+
+        module_state ->
+          updated = %{module_state | status: status, error_message: error_message}
+          Map.put(state, name, updated)
+      end
 
     Logger.info("Module #{name} status: #{status}")
     {:noreply, new_state}
@@ -302,15 +306,19 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
   @impl true
   def handle_cast({:record_health_check, name, metrics}, state) do
     new_state =
-      Map.update(state, name, nil, fn module_state ->
-        if module_state do
-          %{
+      case Map.get(state, name) do
+        nil ->
+          Logger.warning("Attempted to record health check for non-existent module: #{name}")
+          state
+
+        module_state ->
+          updated = %{
             module_state
             | last_health_check: DateTime.utc_now(),
               metrics: metrics
           }
-        end
-      end)
+          Map.put(state, name, updated)
+      end
 
     {:noreply, new_state}
   end
@@ -319,8 +327,10 @@ defmodule FlatracoonOrchestrator.ModuleRegistry do
 
   defp topological_sort(state) do
     # Build adjacency list: module -> [dependencies]
+    # Filter out any nil module states (should not happen, but defensive)
     graph =
       state
+      |> Enum.filter(fn {_name, module_state} -> module_state != nil end)
       |> Enum.map(fn {name, module_state} ->
         {name, module_state.manifest.requires}
       end)
