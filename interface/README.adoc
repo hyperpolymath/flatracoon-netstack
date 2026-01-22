@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+= FlatRacoon SDK
+:toc: macro
+:toclevels: 2
+
+ReScript/Deno SDK for programmatic access to the FlatRacoon Network Stack orchestrator.
+
+toc::[]
+
+== Overview
+
+The FlatRacoon SDK provides a type-safe, ergonomic interface to the orchestrator API.
+
+**Tech Stack:**
+
+* **Language:** ReScript (compiles to ES6 JavaScript)
+* **Runtime:** Deno
+* **API:** REST over HTTP
+
+== Installation
+
+[source,bash]
+----
+deno add @flatracoon/sdk
+----
+
+Or use directly:
+[source,typescript]
+----
+import { make, getModules } from "https://deno.land/x/flatracoon/mod.ts"
+----
+
+== Usage
+
+=== Basic Example
+
+[source,rescript]
+----
+let client = FlatRacoonClient.make(~baseUrl="http://localhost:4000")
+
+// Get all modules
+let modules = await client->FlatRacoonClient.getModules
+switch modules {
+| Ok(mods) => Console.log(`Found ${mods->Array.length->Int.toString} modules`)
+| Error(e) => Console.error(`Error: ${e}`)
+}
+
+// Deploy a module
+let result = await client->FlatRacoonClient.deployModule(~name="zerotier-k8s-link")
+----
+
+=== JavaScript/TypeScript Usage
+
+Compiled ReScript outputs clean ES6:
+
+[source,typescript]
+----
+import * as FlatRacoon from "@flatracoon/sdk"
+
+const client = FlatRacoon.make({ baseUrl: "http://localhost:4000" })
+
+// Get health status
+const health = await FlatRacoon.getHealth(client)
+if (health.TAG === "Ok") {
+  console.log(`Healthy: ${health._0.healthyCount}`)
+  console.log(`Unhealthy: ${health._0.unhealthyCount}`)
+}
+----
+
+== API Reference
+
+=== Client Creation
+
+[source,rescript]
+----
+let make: (~baseUrl: string=?) => client
+----
+
+Creates a new FlatRacoon client. Defaults to `http://localhost:4000`.
+
+=== Module Operations
+
+[source,rescript]
+----
+let getModules: client => promise<result<array<moduleInfo>, string>>
+let getModule: (client, ~name: string) => promise<result<moduleInfo, string>>
+let deployModule: (client, ~name: string) => promise<result<deploymentResponse, string>>
+let restartModule: (client, ~name: string) => promise<result<deploymentResponse, string>>
+let stopModule: (client, ~name: string) => promise<result<deploymentResponse, string>>
+----
+
+=== Health & Monitoring
+
+[source,rescript]
+----
+let getHealth: client => promise<result<healthSummary, string>>
+let getLogs: (client, ~name: string, ~lines: int=?) => promise<result<logsResponse, string>>
+----
+
+=== Deployment
+
+[source,rescript]
+----
+let deployAll: client => promise<result<deploymentResponse, string>>
+let getDeploymentOrder: client => promise<result<array<string>, string>>
+----
+
+== Types
+
+=== moduleInfo
+
+[source,rescript]
+----
+type moduleInfo = {
+  name: string,
+  status: moduleStatus,
+  completion: int,
+  layer: string,
+  version: string,
+}
+
+type moduleStatus = Running | Stopped | Pending | Error
+----
+
+=== healthSummary
+
+[source,rescript]
+----
+type healthSummary = {
+  allHealthy: bool,
+  healthyCount: int,
+  unhealthyCount: int,
+  unknownCount: int,
+}
+----
+
+== Development
+
+[source,bash]
+----
+# Build ReScript
+deno task build
+
+# Watch mode
+deno task watch
+
+# Run tests
+deno task test
+
+# Format
+deno fmt
+
+# Lint
+deno lint
+----
+
+== License
+
+AGPL-3.0-or-later
+
+== See Also
+
+* link:../orchestrator/[Orchestrator] - Phoenix backend
+* link:../tui/[TUI] - Ada terminal interface
+* link:../README.adoc[FlatRacoon Stack] - Main documentation
