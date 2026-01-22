@@ -49,8 +49,62 @@ package body FlatRacoon.API_Client is
 
       -- Read response
       declare
-         In_Body : Boolean := False;
+         In_Body     : Boolean := False;
+         Status_Line : Unbounded_String;
+         Status_Code : Integer := 0;
+         Headers     : Unbounded_String;
       begin
+         -- Read status line first (e.g., "HTTP/1.1 200 OK")
+         loop
+            declare
+               Char : Character;
+            begin
+               Character'Read (Channel, Char);
+
+               if Char = ASCII.LF then
+                  -- Parse status code from status line
+                  declare
+                     Line : constant String := To_String (Status_Line);
+                  begin
+                     -- Extract status code (second field in "HTTP/1.1 200 OK")
+                     if Line'Length >= 12 then
+                        Status_Code := Integer'Value (Line (10 .. 12));
+                     end if;
+                  exception
+                     when Constraint_Error =>
+                        Status_Code := 0;  -- Failed to parse
+                  end;
+                  exit;
+               elsif Char /= ASCII.CR then
+                  Append (Status_Line, Char);
+               end if;
+            end;
+         end loop;
+
+         -- Check status code and raise specific errors
+         case Status_Code is
+            when 200 .. 299 =>
+               null;  -- Success, continue reading
+            when 400 =>
+               Close_Socket (Socket);
+               raise Program_Error with "HTTP 400 Bad Request";
+            when 404 =>
+               Close_Socket (Socket);
+               raise Program_Error with "HTTP 404 Not Found";
+            when 500 =>
+               Close_Socket (Socket);
+               raise Program_Error with "HTTP 500 Server Error";
+            when 503 =>
+               Close_Socket (Socket);
+               raise Program_Error with "HTTP 503 Service Unavailable";
+            when others =>
+               if Status_Code >= 400 then
+                  Close_Socket (Socket);
+                  raise Program_Error with "HTTP error:" & Status_Code'Image;
+               end if;
+         end case;
+
+         -- Read rest of response (headers and body)
          loop
             declare
                Char : Character;
@@ -59,23 +113,22 @@ package body FlatRacoon.API_Client is
 
                -- Simple header/body separation
                if not In_Body then
+                  Append (Headers, Char);
                   declare
-                     Current : constant String := To_String (Response);
+                     Current : constant String := To_String (Headers);
                   begin
                      if Current'Length >= 4 and then
                         Current (Current'Last - 3 .. Current'Last) =
                            ASCII.CR & ASCII.LF & ASCII.CR & ASCII.LF
                      then
                         In_Body := True;
-                        Response := To_Unbounded_String ("");  -- Clear headers
+                        Response := To_Unbounded_String ("");  -- Start fresh for body
                      end if;
                   end;
                end if;
 
                if In_Body then
                   Append (Response, Char);
-               else
-                  Append (Response, Char);  -- Accumulate headers
                end if;
             end;
          end loop;
@@ -138,6 +191,64 @@ package body FlatRacoon.API_Client is
       if Request_Body'Length > 0 then
          String'Write (Channel, Request_Body);
       end if;
+
+      -- Read and parse response status
+      declare
+         Status_Line : Unbounded_String;
+         Status_Code : Integer := 0;
+      begin
+         -- Read status line (e.g., "HTTP/1.1 200 OK")
+         loop
+            declare
+               Char : Character;
+            begin
+               Character'Read (Channel, Char);
+
+               if Char = ASCII.LF then
+                  -- Parse status code from status line
+                  declare
+                     Line : constant String := To_String (Status_Line);
+                  begin
+                     if Line'Length >= 12 then
+                        Status_Code := Integer'Value (Line (10 .. 12));
+                     end if;
+                  exception
+                     when Constraint_Error =>
+                        Status_Code := 0;
+                  end;
+                  exit;
+               elsif Char /= ASCII.CR then
+                  Append (Status_Line, Char);
+               end if;
+            end;
+         end loop;
+
+         -- Check status code and raise specific errors
+         case Status_Code is
+            when 200 .. 299 =>
+               null;  -- Success
+            when 400 =>
+               Close_Socket (Socket);
+               raise Program_Error with "HTTP 400 Bad Request";
+            when 404 =>
+               Close_Socket (Socket);
+               raise Program_Error with "HTTP 404 Not Found";
+            when 500 =>
+               Close_Socket (Socket);
+               raise Program_Error with "HTTP 500 Server Error";
+            when 503 =>
+               Close_Socket (Socket);
+               raise Program_Error with "HTTP 503 Service Unavailable";
+            when others =>
+               if Status_Code >= 400 then
+                  Close_Socket (Socket);
+                  raise Program_Error with "HTTP error:" & Status_Code'Image;
+               end if;
+         end case;
+      exception
+         when End_Error =>
+            null;  -- No response from server
+      end;
 
       -- Clean up
       Close_Socket (Socket);
