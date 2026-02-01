@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: MPL-2.0-or-later
 = FlatRacoon Network Stack - Deployment Guide
 :toc: macro
 :toclevels: 3

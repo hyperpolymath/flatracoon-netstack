@@ -1,11 +1,17 @@
-image:https://img.shields.io/badge/license-PMPL--1.0-blue.svg[License,link="https://github.com/hyperpolymath/palimpsest-license"]
-image:https://img.shields.io/badge/Philosophy-Palimpsest-purple.svg[Palimpsest,link="https://github.com/hyperpolymath/palimpsest-licence"]
+image:https://img.shields.io/badge/License-MPL_2.0-blue.svg[MPL-2.0-or-later,link="https://opensource.org/licenses/MPL-2.0"]
+image:https://img.shields.io/badge/Philosophy-Palimpsest-indigo.svg[Palimpsest,link="https://github.com/hyperpolymath/palimpsest-license"]
 image:https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg[Status]
 image:https://img.shields.io/badge/Completion-100%25-success.svg[Completion]
 image:https://img.shields.io/badge/Phase-Seam%20Smoothing-yellow.svg[Phase]
 
+== License & Philosophy
 
-// SPDX-License-Identifier: PMPL-1.0
+This project must declare **MPL-2.0-or-later** for platform/tooling compatibility.
+
+Philosophy: **Palimpsest**. The Palimpsest-MPL (PMPL) text is provided in `license/PMPL-1.0.txt`, and the canonical source is the palimpsest-license repository.
+
+
+// SPDX-License-Identifier: MPL-2.0-or-later
 // SPDX-FileCopyrightText: 2025 Hyperpolymath <hyperpolymath@proton.me>
 = FlatRacoon Network Stack
 

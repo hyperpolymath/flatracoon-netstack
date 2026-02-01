@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PMPL-1.0-or-later
+// SPDX-License-Identifier: MPL-2.0-or-later
 = FlatRacoon Orchestrator
 
 image:https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg[Status]

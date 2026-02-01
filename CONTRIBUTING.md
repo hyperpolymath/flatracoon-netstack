@@ -115,13 +115,13 @@ The FlatRacoon Network Stack uses a graduated trust model aligned with our secur
 Every source file must have an SPDX header:
 
 ```elixir
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: MPL-2.0-or-later
 # SPDX-FileCopyrightText: 2025 Your Name <your.email@example.com>
 ```
 
 For AsciiDoc/Markdown:
 ```
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0-or-later
 // SPDX-FileCopyrightText: 2025 Your Name <your.email@example.com>
 ```
 
